@@ -14,9 +14,9 @@ class ImageTextApp:
     def __init__(self, master):
         self.master = master
         self.configure_root()
-        self.create_widgets()
         self.initialize_gallery_attributes()
         self.set_custom_font()
+        self.create_widgets()
 
     def set_custom_font(self):
         custom_font = font.nametofont("TkDefaultFont").copy()
@@ -33,6 +33,7 @@ class ImageTextApp:
         self.create_drop_area()
         self.create_text_box()
         self.create_buttons()
+        self.create_gallery_widgets()
 
     def create_drop_area(self):
         self.drop_area = tk.Frame(self.master, width=400, height=200, bg="light blue",
@@ -53,7 +54,6 @@ class ImageTextApp:
         self.text_label.pack()
         self.text_box = tk.Text(self.text_box_frame, height=5, width=60, borderwidth=1, relief="solid")
         self.text_box.pack(fill="both", expand=True)
-
     def create_buttons(self):
         self.button_frame = tk.Frame(self.master)
         self.button_frame.pack(pady=10)
@@ -63,6 +63,15 @@ class ImageTextApp:
         self.browse_button = tk.Button(self.button_frame, text="Browse Images",
                                        command=self.browse_images, font=("Arial", 14))
         self.browse_button.pack(side="left", padx=10)
+
+    def create_gallery_widgets(self):
+        self.gallery_window = None  # Initialize gallery_window as None
+        self.image_frame = None
+        self.gallery_text_box = None
+        self.delete_button = None
+        self.back_button = None
+        self.next_button = None
+        self.image_counter_label = None
 
     def center_window(self, window):
         window.update_idletasks()
@@ -90,12 +99,12 @@ class ImageTextApp:
         self.preview_label.image = img
         self.preview_label.pack(expand=True)
         self.drop_label.pack_forget()  # Hide the "Drop Image Here" label
-
     def save_data(self):
         if hasattr(self, 'current_image_path') and self.text_box.get("1.0", "end-1c"):
             self.save_image_and_text()
             self.update_status("Image and text saved successfully.")
             self.reset_fields()
+            self.refresh_gallery()  # Refresh the gallery after saving
         else:
             self.update_status("Please drop an image and enter some text.", "red")
 
@@ -130,35 +139,40 @@ class ImageTextApp:
         self.drop_label.pack(expand=True)
         self.preview_label.pack_forget()
         self.text_box.delete("1.0", "end")
-
     def initialize_gallery_attributes(self):
-        self.gallery_window = None
+        self.gallery_window = None   # Initialize gallery_window as None
         self.image_frame = None
         self.text_label = None
+        self.delete_button = None
         self.back_button = None
         self.next_button = None
+        self.image_counter_label = None
         self.images = []
         self.current_image_index = 0
 
     def browse_images(self):
-        self.gallery_window = tk.Toplevel(self.master)
-        self.gallery_window.title("Image Gallery")
-        self.setup_gallery_ui()
-        self.load_gallery_images()
-        self.center_window(self.gallery_window)
+        if self.gallery_window is None or not self.gallery_window.winfo_exists():
+            # If the gallery window is not initialized or doesn't exist, create it
+            self.gallery_window = tk.Toplevel(self.master)
+            self.gallery_window.title("Image Gallery")
+            self.setup_gallery_ui()
+            self.load_gallery_images()
+            self.center_window(self.gallery_window)
+        else:
+            # The gallery window is already open, you can choose to do something here
+            pass
 
     def setup_gallery_ui(self):
         self.image_frame = tk.Frame(self.gallery_window)
         self.image_frame.pack()
-
         self.gallery_text_box = tk.Text(self.gallery_window, height=5, width=60, wrap="word",
                                         state="disabled", bg=self.gallery_window.cget("bg"))
         self.gallery_text_box.pack()
-
-        self.image_counter_label = tk.Label(self.gallery_window, text="")
-        self.image_counter_label.pack()
-
+        self.delete_button = tk.Button(self.gallery_window, text="Delete", command=self.delete_image)
+        self.delete_button.pack(side="left")
         self.create_gallery_buttons()
+        self.image_counter_label = tk.Label(self.gallery_window, text="", font=("Arial", 12))
+        self.image_counter_label.pack()
 
     def create_gallery_buttons(self):
         self.back_button = tk.Button(self.gallery_window, text="<< Back",
@@ -170,6 +184,7 @@ class ImageTextApp:
         self.bind_navigation_keys()
         self.create_tooltips()
 
+
     def bind_navigation_keys(self):
         self.gallery_window.bind("<Left>", lambda e: self.previous_image())
         self.gallery_window.bind("<Right>", lambda e: self.next_image())
@@ -179,12 +194,12 @@ class ImageTextApp:
     def create_tooltips(self):
         self.create_tooltip(self.back_button, "Previous Image (Left Arrow or 'j')")
         self.create_tooltip(self.next_button, "Next Image (Right Arrow or 'k')")
+        self.create_tooltip(self.delete_button, "Delete Image")
 
     def create_tooltip(self, widget, text):
         tooltip = Tooltip(widget, text)
         widget.bind("<Enter>", tooltip.showtip)
         widget.bind("<Leave>", tooltip.hidetip)
-
     def load_gallery_images(self):
         json_path = os.path.join("stored_images", "data.json")
         if os.path.exists(json_path):
@@ -199,6 +214,11 @@ class ImageTextApp:
             self.gallery_text_box.delete("1.0", "end")
             self.gallery_text_box.insert("1.0", "No images found.")
             self.gallery_text_box.config(state="disabled")
+        self.update_image_counter(self.current_image_index)
+
+    def refresh_gallery(self):
+        self.load_gallery_images()
+        self.update_image_counter(self.current_image_index)
 
     def show_image(self, index):
         for widget in self.image_frame.winfo_children():
@@ -215,23 +235,87 @@ class ImageTextApp:
         self.gallery_text_box.delete("1.0", "end")
         self.gallery_text_box.insert("1.0", text_content)
         self.gallery_text_box.config(state="disabled")
+        self.update_image_counter(index)
+
+    def update_image_counter(self, index):
+        total_images = len(self.images)
+        if total_images > 0:
+            counter_text = f"Image {index + 1} of {total_images}"
+            self.image_counter_label.config(text=counter_text)
+        else:
+            self.image_counter_label.config(text="")
+
+
 
     def next_image(self):
         if self.images:
             self.current_image_index = (self.current_image_index + 1) % len(self.images)
             self.show_image(self.current_image_index)
+            self.update_image_counter(self.current_image_index)
 
     def previous_image(self):
         if self.images:
             self.current_image_index = (self.current_image_index - 1) % len(self.images)
             self.show_image(self.current_image_index)
 
+    def delete_image(self):
+        if self.images:
+            image_path = self.images[self.current_image_index]
+            image_name = os.path.basename(image_path)
+
+            # Remove the image file
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+            # Remove the text associated with the image
+            json_path = os.path.join("stored_images", "data.json")
+            if os.path.exists(json_path):
+                with open(json_path, "r") as file:
+                    data = json.load(file)
+                if image_name in data:
+                    del data[image_name]
+                    with open(json_path, "w") as file:
+                        json.dump(data, file)
+
+            # Remove the image from the list
+            del self.images[self.current_image_index]
+
+            if len(self.images) == 0:
+                self.gallery_text_box.config(state="normal")
+                self.gallery_text_box.delete("1.0", "end")
+                self.gallery_text_box.insert("1.0", "No images found.")
+                self.gallery_text_box.config(state="disabled")
+                self.current_image_index = 0  # Set index to zero when no images are left
+                self.image_frame.pack_forget()  # Hide the image frame
+            else:
+                if self.current_image_index >= len(self.images):
+                    self.current_image_index = len(self.images) - 1  # Adjust index if out of bounds
+                self.show_image(self.current_image_index)
+
+            self.update_image_counter(self.current_image_index)  # Update the image counter
+
+    def bind_navigation_keys(self):
+        self.gallery_window.bind("<Left>", lambda e: self.previous_image())
+        self.gallery_window.bind("<Right>", lambda e: self.next_image())
+        self.gallery_window.bind("j", lambda e: self.previous_image())
+        self.gallery_window.bind("k", lambda e: self.next_image())
+
+    def create_tooltips(self):
+        self.create_tooltip(self.back_button, "Previous Image (Left Arrow or 'j')")
+        self.create_tooltip(self.next_button, "Next Image (Right Arrow or 'k')")
+        self.create_tooltip(self.delete_button, "Delete Image")
+
+    def create_tooltip(self, widget, text):
+        tooltip = Tooltip(widget, text)
+        widget.bind("<Enter>", tooltip.showtip)
+        widget.bind("<Leave>", tooltip.hidetip)
 
 class Tooltip:
-    def __init__(self, widget, text):
+    def __init__(self, widget, text, **kwargs):
         self.widget = widget
         self.text = text
         self.tipwindow = None
+        self.kwargs = kwargs  # Store additional keyword arguments
 
     def showtip(self, event=None):
         x, y, _, _ = self.widget.bbox("insert")
@@ -250,7 +334,6 @@ class Tooltip:
         self.tipwindow = None
         if tw:
             tw.destroy()
-
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk()
