@@ -2,3 +2,4 @@ build/
 dist/
 *.egg-info/
 main.spec
+setup.py

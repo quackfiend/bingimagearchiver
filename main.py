@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from tkinter import messagebox, ttk
 
+from tkinter import ttk
 from PIL import Image, ImageTk
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
